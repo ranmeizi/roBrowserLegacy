@@ -17,6 +17,7 @@ import Sprite from 'Loaders/Sprite.js';
 import Action from 'Loaders/Action.js';
 import Str from 'Loaders/Str.js';
 import FileSystem from 'Core/FileSystem.js';
+import CodepageManager from 'Utils/CodepageManager.js';
 
 // Load dependencies
 /* global process */
@@ -238,6 +239,38 @@ class FileManager {
 	}
 
 	/**
+	 * Convert GRF-style mojibake path segments to Unicode for remote HTTP URLs.
+	 * Internal filenames use windows-1252 bytes interpreted as Latin-1; unpacked
+	 * client folders on the server typically use UTF-8 Korean names.
+	 *
+	 * @param {string} filename
+	 * @return {string}
+	 */
+	static toUnicodeRemotePath(filename) {
+		return filename
+			.replace(/\\/g, '/')
+			.split('/')
+			.map(seg => {
+				if (!seg || !/[\u0080-\u00ff]/.test(seg)) {
+					return seg;
+				}
+
+				try {
+					const bytes = CodepageManager.encode(seg, 'latin1');
+					if (!bytes || bytes.length === 0) {
+						return seg;
+					}
+
+					const decoded = CodepageManager.decode(bytes, 'windows-949');
+					return decoded || seg;
+				} catch {
+					return seg;
+				}
+			})
+			.join('/');
+	}
+
+	/**
 	 * Trying to load a file from the remote host
 	 *
 	 * @param {string} filename
@@ -245,7 +278,8 @@ class FileManager {
 	 */
 	static getHTTP(filename, callback) {
 		filename = filename.replace(/\\/g, '/');
-		let url = filename.replace(/[^/]+/g, a => {
+		const remotePath = FileManager.toUnicodeRemotePath(filename);
+		let url = remotePath.replace(/[^/]+/g, a => {
 			return encodeURIComponent(a);
 		});
 
@@ -334,7 +368,7 @@ class FileManager {
 				}
 
 				const files = queue.map(q => {
-					return q.filename.replace(/\\/g, '/');
+					return FileManager.toUnicodeRemotePath(q.filename.replace(/\\/g, '/'));
 				});
 
 				fetch(FileManager.remoteClient + 'batch', {
