@@ -28,7 +28,7 @@ window.ROConfigBase = {
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: 'wss://connect.robrowser.com',
+			socketProxy: 'ws://192.168.240.211:5999',
 			adminList: [2000000]
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION

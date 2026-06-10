@@ -178,14 +178,19 @@ class FileManager {
 	 * @return {Array} filename list
 	 */
 	static search(regex) {
-		// Use hosted client (only one to be async ?)
+		// RemoteClient-JS: POST /search with JSON body, newline-separated response
 		if (!FileManager.gameFiles.length && FileManager.remoteClient) {
 			const req = new XMLHttpRequest();
-			req.open('POST', FileManager.remoteClient, false);
-			req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+			req.open('POST', FileManager.remoteClient + 'search', false);
+			req.setRequestHeader('Content-Type', 'application/json');
 			req.overrideMimeType('text/plain; charset=ISO-8859-1');
-			req.send('filter=' + encodeURIComponent(regex.source));
-			return req.responseText.split('\n');
+			req.send(JSON.stringify({ filter: regex.source }));
+
+			if (req.status !== 200 || !req.responseText) {
+				return [];
+			}
+
+			return req.responseText.split('\n').filter(line => line.length > 0);
 		}
 
 		return Array.from(new Set(FileManager.gameFiles.flatMap(file => file.table.data.match(regex) || [])));
