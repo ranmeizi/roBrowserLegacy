@@ -28,7 +28,7 @@ window.ROConfigBase = {
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: 'ws://192.168.240.211:5999/',
+			socketProxy: 'ws://192.168.240.211:3338/ws/',
 			forceUseAddress: true,
 			adminList: [2000000]
 		}
