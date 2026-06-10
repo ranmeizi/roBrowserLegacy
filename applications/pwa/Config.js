@@ -20,7 +20,7 @@ window.ROConfigBase = {
 		{
 			display: 'roBrowser Demo Server',
 			desc: 'demo server',
-			address: '127.0.0.1',
+			address: '192.168.240.211',
 			port: 6900,
 			version: 25,
 			langtype: 240,
