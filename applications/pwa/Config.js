@@ -23,12 +23,12 @@ window.ROConfigBase = {
 			address: '127.0.0.1',
 			port: 6900,
 			version: 25,
-			langtype: 20,
+			langtype: 240,
 			packetver: 20150916,
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: 'ws://192.168.240.211:3338/ws/',
+			socketProxy: 'ws://192.168.240.211:5999/',
 			forceUseAddress: true,
 			adminList: [2000000]
 		}
