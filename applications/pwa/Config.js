@@ -15,7 +15,7 @@ window.ROConfigBase = {
 	type: 'FRAME',
 	application: 'ONLINE',
 	development: true,
-	remoteClient: 'https://grf.robrowser.com/',
+	remoteClient: 'http://192.168.240.211:3338',
 	servers: [
 		{
 			display: 'roBrowser Demo Server',
@@ -23,8 +23,8 @@ window.ROConfigBase = {
 			address: '127.0.0.1',
 			port: 6900,
 			version: 25,
-			langtype: 12,
-			packetver: 20130618,
+			langtype: 20,
+			packetver: 20150916,
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
