@@ -172,25 +172,101 @@ class FileManager {
 	}
 
 	/**
+	 * @param {RegExp} regex
+	 * @return {string[]}
+	 */
+	static _filterRemoteFiles(regex, files) {
+		const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
+		const matcher = new RegExp(regex.source, flags);
+		const out = [];
+
+		for (const file of files) {
+			matcher.lastIndex = 0;
+			if (matcher.test(file)) {
+				out.push(file);
+			}
+		}
+
+		return out;
+	}
+
+	/**
+	 * @param {string} url
+	 * @return {string|null}
+	 */
+	static _remoteXhrGet(url) {
+		const req = new XMLHttpRequest();
+		req.open('GET', url, false);
+		req.send();
+
+		if (req.status !== 200 || !req.responseText) {
+			return null;
+		}
+
+		return req.responseText;
+	}
+
+	/**
+	 * RemoteClient-JS: POST /search with JSON body, newline-separated response
+	 *
+	 * @param {RegExp} regex
+	 * @return {string[]}
+	 */
+	static _remoteSearchPost(regex) {
+		const req = new XMLHttpRequest();
+		req.open('POST', FileManager.remoteClient + 'search', false);
+		req.setRequestHeader('Content-Type', 'application/json');
+		req.overrideMimeType('text/plain; charset=ISO-8859-1');
+		req.send(JSON.stringify({ filter: regex.source }));
+
+		if (req.status !== 200 || !req.responseText) {
+			return [];
+		}
+
+		if (req.responseText.indexOf('<!DOCTYPE') !== -1 || req.responseText.indexOf('<html') !== -1) {
+			return [];
+		}
+
+		return req.responseText.split('\n').filter(line => line.length > 0);
+	}
+
+	/**
+	 * RemoteClient-JS: GET /list-files JSON array (GRF or loose-files index)
+	 *
+	 * @param {RegExp} regex
+	 * @return {string[]}
+	 */
+	static _remoteSearchListFiles(regex) {
+		const text = FileManager._remoteXhrGet(FileManager.remoteClient + 'list-files');
+		if (!text) {
+			return [];
+		}
+
+		try {
+			const files = JSON.parse(text);
+			if (!Array.isArray(files) || !files.length) {
+				return [];
+			}
+
+			return FileManager._filterRemoteFiles(regex, files);
+		} catch {
+			return [];
+		}
+	}
+
+	/**
 	 * Search a file in each GameFile
 	 *
 	 * @param {RegExp} regex
 	 * @return {Array} filename list
 	 */
 	static search(regex) {
-		// RemoteClient-JS: POST /search with JSON body, newline-separated response
 		if (!FileManager.gameFiles.length && FileManager.remoteClient) {
-			const req = new XMLHttpRequest();
-			req.open('POST', FileManager.remoteClient + 'search', false);
-			req.setRequestHeader('Content-Type', 'application/json');
-			req.overrideMimeType('text/plain; charset=ISO-8859-1');
-			req.send(JSON.stringify({ filter: regex.source }));
-
-			if (req.status !== 200 || !req.responseText) {
-				return [];
+			let results = FileManager._remoteSearchPost(regex);
+			if (!results.length) {
+				results = FileManager._remoteSearchListFiles(regex);
 			}
-
-			return req.responseText.split('\n').filter(line => line.length > 0);
+			return results;
 		}
 
 		return Array.from(new Set(FileManager.gameFiles.flatMap(file => file.table.data.match(regex) || [])));
