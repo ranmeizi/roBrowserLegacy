@@ -20,7 +20,7 @@ window.ROConfigBase = {
 		{
 			display: 'roBrowser Demo Server',
 			desc: 'demo server',
-			address: '192.168.240.211',
+			address: '127.0.0.1',
 			port: 6900,
 			version: 25,
 			langtype: 20,
@@ -28,7 +28,8 @@ window.ROConfigBase = {
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: 'ws://192.168.240.211:5999',
+			socketProxy: 'ws://192.168.240.211:3338/ws/',
+			forceUseAddress: true,
 			adminList: [2000000]
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION
