@@ -172,41 +172,6 @@ class FileManager {
 	}
 
 	/**
-	 * @param {RegExp} regex
-	 * @return {string[]}
-	 */
-	static _filterRemoteFiles(regex, files) {
-		const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
-		const matcher = new RegExp(regex.source, flags);
-		const out = [];
-
-		for (const file of files) {
-			matcher.lastIndex = 0;
-			if (matcher.test(file)) {
-				out.push(file);
-			}
-		}
-
-		return out;
-	}
-
-	/**
-	 * @param {string} url
-	 * @return {string|null}
-	 */
-	static _remoteXhrGet(url) {
-		const req = new XMLHttpRequest();
-		req.open('GET', url, false);
-		req.send();
-
-		if (req.status !== 200 || !req.responseText) {
-			return null;
-		}
-
-		return req.responseText;
-	}
-
-	/**
 	 * RemoteClient-JS: POST /search with JSON body, newline-separated response
 	 *
 	 * @param {RegExp} regex
@@ -231,30 +196,6 @@ class FileManager {
 	}
 
 	/**
-	 * RemoteClient-JS: GET /list-files JSON array (GRF or loose-files index)
-	 *
-	 * @param {RegExp} regex
-	 * @return {string[]}
-	 */
-	static _remoteSearchListFiles(regex) {
-		const text = FileManager._remoteXhrGet(FileManager.remoteClient + 'list-files');
-		if (!text) {
-			return [];
-		}
-
-		try {
-			const files = JSON.parse(text);
-			if (!Array.isArray(files) || !files.length) {
-				return [];
-			}
-
-			return FileManager._filterRemoteFiles(regex, files);
-		} catch {
-			return [];
-		}
-	}
-
-	/**
 	 * Search a file in each GameFile
 	 *
 	 * @param {RegExp} regex
@@ -262,11 +203,7 @@ class FileManager {
 	 */
 	static search(regex) {
 		if (!FileManager.gameFiles.length && FileManager.remoteClient) {
-			let results = FileManager._remoteSearchPost(regex);
-			if (!results.length) {
-				results = FileManager._remoteSearchListFiles(regex);
-			}
-			return results;
+			return FileManager._remoteSearchPost(regex);
 		}
 
 		return Array.from(new Set(FileManager.gameFiles.flatMap(file => file.table.data.match(regex) || [])));

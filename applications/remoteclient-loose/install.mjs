@@ -1,8 +1,8 @@
 /* eslint-disable */
 /**
  * Patch RemoteClient-JS for loose-files mode (no GRF):
- *   - Index data/, BGM/, System/
- *   - Resolve UTF-8 Korean URLs to CP949 mojibake folder names on disk
+ *   - On-demand /search (no full data/ index)
+ *   - UTF-8 Korean URL → CP949 mojibake path lookup for getFile
  *
  * Usage:
  *   node applications/remoteclient-loose/install.mjs ~/roBrowserLegacy-RemoteClient-JS
@@ -36,90 +36,96 @@ console.log('Copied looseFileIndex.js, pathEncoding.js');
 let src = fs.readFileSync(clientControllerPath, 'utf8');
 let changed = false;
 
+function markChanged() {
+	changed = true;
+}
+
+// --- requires ---
 if (!src.includes("require('../utils/looseFileIndex')")) {
 	src = src.replace(
 		"const iconv = require('iconv-lite');",
-		"const iconv = require('iconv-lite');\nconst { buildLooseFileList } = require('../utils/looseFileIndex');\nconst { resolveLoosePathVariants } = require('../utils/pathEncoding');"
+		"const iconv = require('iconv-lite');\nconst { searchLooseFiles } = require('../utils/looseFileIndex');\nconst { resolveLoosePathVariants } = require('../utils/pathEncoding');"
 	);
-	changed = true;
-} else if (!src.includes("require('../utils/pathEncoding')")) {
-	src = src.replace(
-		"const { buildLooseFileList } = require('../utils/looseFileIndex');",
-		"const { buildLooseFileList } = require('../utils/looseFileIndex');\nconst { resolveLoosePathVariants } = require('../utils/pathEncoding');"
-	);
-	changed = true;
+	markChanged();
+} else {
+	src = src
+		.replace(
+			/const \{ buildLooseFileList(?:Async)? \} = require\('\.\.\/utils\/looseFileIndex'\);\n?/g,
+			"const { searchLooseFiles } = require('../utils/looseFileIndex');\n"
+		)
+		.replace(
+			"const { searchLooseFiles } = require('../utils/looseFileIndex');\nconst { searchLooseFiles }",
+			"const { searchLooseFiles }"
+		);
+	if (!src.includes("require('../utils/pathEncoding')")) {
+		src = src.replace(
+			"const { searchLooseFiles } = require('../utils/looseFileIndex');",
+			"const { searchLooseFiles } = require('../utils/looseFileIndex');\nconst { resolveLoosePathVariants } = require('../utils/pathEncoding');"
+		);
+	}
+	markChanged();
 }
 
-if (!src.includes('looseFiles:')) {
-	src = src.replace('  missingFiles: [],', '  missingFiles: [],\n  looseFiles: [],');
-	changed = true;
+// --- remove broken full-index helpers ---
+src = src.replace(/\n  buildLooseFileIndex\(\) \{[\s\S]*?\n  \},\n/g, '\n');
+src = src.replace(/\n  looseFiles: \[\],\n  looseIndexing: false,\n/g, '\n');
+src = src.replace(/\n  looseFiles: \[\],\n/g, '\n');
+
+if (!src.includes('looseMode:')) {
+	src = src.replace('  missingFiles: [],', '  missingFiles: [],\n  looseMode: false,');
+	markChanged();
 }
 
-if (src.includes("logger.warn('No GRF files configured in DATA.INI. Add GRF files to [data] section.');")) {
-	src = src.replace(
-		`    if (!dataIni.data || dataIni.data.length === 0) {
-      logger.warn('No GRF files configured in DATA.INI. Add GRF files to [data] section.');
+// --- init: no GRF → loose mode, no indexing ---
+const initOld =
+	/if \(!dataIni\.data \|\| dataIni\.data\.length === 0\) \{[\s\S]*?return;\s*\}/;
+const initNew = `if (!dataIni.data || dataIni.data.length === 0) {
+      logger.warn('No GRF in DATA.INI — loose files mode (on-demand search, no full index)');
       this.grfs = [];
+      this.looseMode = true;
       return;
-    }`,
-		`    if (!dataIni.data || dataIni.data.length === 0) {
-      logger.warn('No GRF in DATA.INI — indexing loose files from data/, BGM/, System/');
-      this.grfs = [];
-      this.buildLooseFileIndex();
-      return;
-    }`
-	);
-	changed = true;
+    }`;
+
+if (initOld.test(src) && !src.includes('on-demand search, no full index')) {
+	src = src.replace(initOld, initNew);
+	markChanged();
 }
 
-if (!src.includes('buildLooseFileIndex()')) {
-	src = src.replace(
-		'  getIndexStats() {',
-		`  buildLooseFileIndex() {
-    const projectRoot = path.join(__dirname, '..', '..');
-    const startTime = Date.now();
-    this.looseFiles = buildLooseFileList(projectRoot);
-    indexBuilt = true;
-    logger.info(\`Loose files indexed in \${Date.now() - startTime}ms (\${this.looseFiles.length.toLocaleString()} files)\`);
-  },
+// --- search: on-demand walk, remove looseFiles array scan ---
+src = src.replace(
+	/  search\(regex\) \{\n    if \(this\.looseFiles[\s\S]*?return Array\.from\(matchingFiles\);\n    \}\n\n/g,
+	'  search(regex) {\n'
+);
 
-  getIndexStats() {`
-	);
-	changed = true;
-}
-
-if (!src.includes('if (this.looseFiles && this.looseFiles.length) {\n      return this.looseFiles.slice();')) {
-	src = src.replace(
-		'  listFiles() {\n    // Use index if available for faster response',
-		`  listFiles() {
-    if (this.looseFiles && this.looseFiles.length) {
-      return this.looseFiles.slice();
-    }
-
-    // Use index if available for faster response`
-	);
-	changed = true;
-}
-
-if (!src.includes('if (this.looseFiles && this.looseFiles.length) {\n      const matchingFiles = new Set();')) {
+if (!src.includes('if (this.looseMode)')) {
 	src = src.replace(
 		'  search(regex) {\n    if (!configs.CLIENT_ENABLESEARCH) {',
 		`  search(regex) {
-    if (this.looseFiles && this.looseFiles.length) {
-      const matchingFiles = new Set();
-      for (const file of this.looseFiles) {
-        if (regex.test(file)) {
-          matchingFiles.add(file);
-        }
-      }
-      return Array.from(matchingFiles);
+    if (this.looseMode) {
+      const projectRoot = path.join(__dirname, '..', '..');
+      return searchLooseFiles(projectRoot, regex);
     }
 
     if (!configs.CLIENT_ENABLESEARCH) {`
 	);
-	changed = true;
+	markChanged();
 }
 
+// --- listFiles: loose mode returns [] (never dump all of data/) ---
+if (!src.includes('if (this.looseMode) {\n      return [];')) {
+	src = src.replace(
+		'  listFiles() {\n    // Use index if available for faster response',
+		`  listFiles() {
+    if (this.looseMode) {
+      return [];
+    }
+
+    // Use index if available for faster response`
+	);
+	markChanged();
+}
+
+// --- getFile: Korean path encoding ---
 const oldLocalLookup = `    let grfFilePath = filePath.replace(/\\//g, '\\\\');
     let localPath = path.join(__dirname, '..', '..', filePath);
 
@@ -152,10 +158,8 @@ const newLocalLookup = `    let grfFilePath = filePath.replace(/\\//g, '\\\\');
 
 if (src.includes(oldLocalLookup)) {
 	src = src.replace(oldLocalLookup, newLocalLookup);
-	changed = true;
+	markChanged();
 	console.log('Patched getFile() loose path encoding');
-} else if (!src.includes('resolveLoosePathVariants(filePath)')) {
-	console.warn('Warning: could not patch getFile() — check clientController.js manually');
 }
 
 if (changed) {
