@@ -34,7 +34,7 @@ window.ROConfigBase = {
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION
 	],
-	packetDump: false,
+	packetDump: true,
 	skipServerList: true,
 	skipIntro: false,
 	aura: {},
