@@ -102,6 +102,22 @@ Packets.list = [];
  * @param {boolean} is zone server ?
  */
 function connect(host, port, callback, isZone) {
+	// Close the previous socket before opening a new one (login → char → map).
+	// Without this, orphan WebSocket proxy sessions stay open until setPing or server timeout.
+	if (_socket) {
+		const prev = _socket;
+		_socket = null;
+		if (prev.ping) {
+			clearInterval(prev.ping);
+			prev.ping = null;
+		}
+		prev.close();
+		const idx = _sockets.indexOf(prev);
+		if (idx !== -1) {
+			_sockets.splice(idx, 1);
+		}
+	}
+
 	const socket = _socketFactory ? _socketFactory(host, port) : defaultSocketFactory(host, port);
 
 	socket.isZone = !!isZone;
@@ -417,10 +433,17 @@ function setPing(callback) {
 		_socket.ping = setInterval(callback, 10000);
 
 		while (_sockets.length > 1) {
-			if (_socket !== _sockets[0]) {
-				_sockets[0].close();
+			const stale = _sockets[0];
+			if (stale === _socket) {
 				_sockets.splice(0, 1);
+				continue;
 			}
+			if (stale.ping) {
+				clearInterval(stale.ping);
+				stale.ping = null;
+			}
+			stale.close();
+			_sockets.splice(0, 1);
 		}
 	}
 }
