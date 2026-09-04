@@ -11,30 +11,31 @@
  *       skipIntro: true
  *   };
  */
+const host = location.host;
+
 window.ROConfigBase = {
 	type: 'FRAME',
 	application: 'ONLINE',
 	development: true,
-	remoteClient: 'http://192.168.240.211:3338',
+	remoteClient: `http://${host}:3338`,
 	servers: [
 		{
 			display: 'roBrowser Demo Server',
 			desc: 'demo server',
-			address: '192.168.240.211',
+			address: '127.0.0.1',
 			port: 6900,
 			version: 25,
-			langtype: 240,
+			langtype: 12,
 			packetver: 20150916,
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: 'ws://192.168.240.211:3338/ws/',
-			forceUseAddress: true,
+			socketProxy: `ws://${host}/ws`,
 			adminList: [2000000]
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION
 	],
-	packetDump: true,
+	packetDump: false,
 	skipServerList: true,
 	skipIntro: false,
 	aura: {},
