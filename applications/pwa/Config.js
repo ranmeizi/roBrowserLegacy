@@ -11,13 +11,14 @@
  *       skipIntro: true
  *   };
  */
-const host = location.host;
+
+const hostname = location.hostname;
 
 window.ROConfigBase = {
 	type: 'FRAME',
 	application: 'ONLINE',
 	development: true,
-	remoteClient: `http://${host}:3338`,
+	remoteClient: `http://${hostname}:3338`,
 	servers: [
 		{
 			display: 'roBrowser Demo Server',
@@ -26,11 +27,11 @@ window.ROConfigBase = {
 			port: 6900,
 			version: 25,
 			langtype: 12,
-			packetver: 20150916,
+			packetver: 20170614,
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: `ws://${host}/ws`,
+			socketProxy: `ws://${hostname}/ws`,
 			adminList: [2000000]
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION
