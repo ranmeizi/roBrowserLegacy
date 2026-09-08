@@ -1,0 +1,85 @@
+# Build Windows frpc visitor zip (NO SSH visitor).
+#
+# Required repository secrets:
+#   FRP_AUTH_TOKEN  - frps auth.token
+#   FRP_SECRET_KEY  - stcp secretKey
+#
+# Optional secrets / vars:
+#   FRP_SERVER_ADDR (default 120.26.102.118)
+#   FRP_SERVER_PORT (default 7000)
+#   FRP_VERSION     (default 0.61.1)
+#
+# Run: Actions → Build FRPC Visitor (Windows) → Run workflow
+
+name: Build FRPC Visitor (Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      frp_version:
+        description: 'frp release version (without v prefix)'
+        required: false
+        default: '0.61.1'
+      server_addr:
+        description: 'frps serverAddr'
+        required: false
+        default: '120.26.102.118'
+      server_port:
+        description: 'frps serverPort'
+        required: false
+        default: '7000'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Package frpc visitor (windows-amd64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate secrets
+        shell: bash
+        env:
+          FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
+          FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
+        run: |
+          if [ -z "$FRP_AUTH_TOKEN" ] || [ -z "$FRP_SECRET_KEY" ]; then
+            echo "::error::Set repository secrets FRP_AUTH_TOKEN and FRP_SECRET_KEY before running."
+            exit 1
+          fi
+
+      - name: Build package
+        shell: bash
+        env:
+          FRP_TARGET: windows
+          FRP_ARCH: amd64
+          FRP_VERSION: ${{ inputs.frp_version }}
+          FRP_SERVER_ADDR: ${{ inputs.server_addr }}
+          FRP_SERVER_PORT: ${{ inputs.server_port }}
+          FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
+          FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
+        run: node ./applications/tools/build-frpc-visitor.mjs
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frpc-visitor-win
+          path: dist/frpc-visitor-windows-amd64-v*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload folder artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frpc-visitor-win-folder
+          path: dist/frpc-visitor-windows/
+          if-no-files-found: error
+          retention-days: 14
