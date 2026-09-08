@@ -68,18 +68,26 @@ jobs:
           FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
         run: node ./applications/tools/build-frpc-visitor.mjs
 
-      - name: Upload zip artifact
+      - name: List dist output
+        shell: bash
+        run: |
+          echo "=== dist listing ==="
+          ls -la dist/ || true
+          ls -la dist/frpc-visitor-windows/ || true
+          ls -la dist/*.zip || true
+
+      - name: Prepare download zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=$(ls dist/frpc-visitor-windows-amd64-v*.zip | head -n 1)
+          cp "$SRC" dist/frpc-visitor-win.zip
+          echo "Prepared dist/frpc-visitor-win.zip from $SRC"
+
+      - name: Upload frpc-visitor-win.zip
         uses: actions/upload-artifact@v4
         with:
           name: frpc-visitor-win
-          path: dist/frpc-visitor-windows-amd64-v*.zip
+          path: dist/frpc-visitor-win.zip
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload folder artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frpc-visitor-win-folder
-          path: dist/frpc-visitor-windows/
-          if-no-files-found: error
-          retention-days: 14
