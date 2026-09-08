@@ -95,7 +95,7 @@ class FileManager {
 				}
 
 				// Remove empty slot from list
-				for (i = 0, count = list.length; i < count; ) {
+				for (i = 0, count = list.length; i < count;) {
 					if (list[i] === undefined) {
 						list.splice(i, 1);
 						count--;
