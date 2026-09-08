@@ -1,23 +1,16 @@
-# Build Windows frpc visitor zip (NO SSH visitor).
+# Only packages: frpc.exe + frpc.toml + open-game.html + start.bat
+# Does NOT checkout or build roBrowser / any game assets.
 #
-# Required repository secrets:
-#   FRP_AUTH_TOKEN  - frps auth.token
-#   FRP_SECRET_KEY  - stcp secretKey
-#
-# Optional secrets / vars:
-#   FRP_SERVER_ADDR (default 120.26.102.118)
-#   FRP_SERVER_PORT (default 7000)
-#   FRP_VERSION     (default 0.61.1)
-#
-# Run: Actions → Build FRPC Visitor (Windows) → Run workflow
+# Secrets: FRP_AUTH_TOKEN, FRP_SECRET_KEY
+# Run: Actions → Package FRPC Visitor → Run workflow → download Artifacts
 
-name: Build FRPC Visitor (Windows)
+name: Package FRPC Visitor
 
 on:
   workflow_dispatch:
     inputs:
       frp_version:
-        description: 'frp release version (without v prefix)'
+        description: 'frp version (no v prefix)'
         required: false
         default: '0.61.1'
       server_addr:
@@ -33,61 +26,133 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Package frpc visitor (windows-amd64)
+  package:
+    name: frpc + html + bat only
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Validate secrets
+      - name: Check secrets
         shell: bash
         env:
           FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
           FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
         run: |
           if [ -z "$FRP_AUTH_TOKEN" ] || [ -z "$FRP_SECRET_KEY" ]; then
-            echo "::error::Set repository secrets FRP_AUTH_TOKEN and FRP_SECRET_KEY before running."
+            echo "::error::Set secrets FRP_AUTH_TOKEN and FRP_SECRET_KEY"
             exit 1
           fi
 
-      - name: Build package
-        shell: bash
+      - name: Download frpc and make package
+        shell: pwsh
         env:
-          FRP_TARGET: windows
-          FRP_ARCH: amd64
           FRP_VERSION: ${{ inputs.frp_version }}
           FRP_SERVER_ADDR: ${{ inputs.server_addr }}
           FRP_SERVER_PORT: ${{ inputs.server_port }}
           FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
           FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
-        run: node ./applications/tools/build-frpc-visitor.mjs
-
-      - name: List dist output
-        shell: bash
         run: |
-          echo "=== dist listing ==="
-          ls -la dist/ || true
-          ls -la dist/frpc-visitor-windows/ || true
-          ls -la dist/*.zip || true
+          $ErrorActionPreference = 'Stop'
+          $ver = $env:FRP_VERSION
+          $out = Join-Path $env:RUNNER_TEMP 'frpc-visitor-win'
+          $zipDl = Join-Path $env:RUNNER_TEMP "frp_${ver}_windows_amd64.zip"
+          $url = "https://github.com/fatedier/frp/releases/download/v${ver}/frp_${ver}_windows_amd64.zip"
 
-      - name: Prepare download zip
-        shell: bash
-        run: |
-          set -euo pipefail
-          SRC=$(ls dist/frpc-visitor-windows-amd64-v*.zip | head -n 1)
-          cp "$SRC" dist/frpc-visitor-win.zip
-          echo "Prepared dist/frpc-visitor-win.zip from $SRC"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $zipDl
+          Expand-Archive -Force -Path $zipDl -DestinationPath (Join-Path $env:RUNNER_TEMP 'frp-extract')
 
-      - name: Upload frpc-visitor-win.zip
+          $frpc = Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'frp-extract') -Recurse -Filter 'frpc.exe' | Select-Object -First 1
+          if (-not $frpc) { throw 'frpc.exe not found' }
+          Copy-Item $frpc.FullName (Join-Path $out 'frpc.exe')
+
+          # NO SSH / 2822 — only 8010, 5999, 3338
+          $toml = @"
+          serverAddr = "$($env:FRP_SERVER_ADDR)"
+          serverPort = $($env:FRP_SERVER_PORT)
+          auth.token = "$($env:FRP_AUTH_TOKEN)"
+
+          [[visitors]]
+          name = "ro-robrowser"
+          type = "stcp"
+          serverName = "robrowser"
+          secretKey = "$($env:FRP_SECRET_KEY)"
+          bindPort = 8010
+
+          [[visitors]]
+          name = "ro-wsproxy"
+          type = "stcp"
+          serverName = "wsproxy"
+          secretKey = "$($env:FRP_SECRET_KEY)"
+          bindPort = 5999
+
+          [[visitors]]
+          name = "ro-remote-client"
+          type = "stcp"
+          serverName = "remote-client"
+          secretKey = "$($env:FRP_SECRET_KEY)"
+          bindPort = 3338
+          "@
+          # Strip accidental leading whitespace from each line (YAML indent)
+          ($toml -split "`n" | ForEach-Object { $_ -replace '^\s+', '' }) -join "`n" |
+            Set-Content -NoNewline -Encoding utf8 (Join-Path $out 'frpc.toml')
+          Add-Content -Encoding utf8 (Join-Path $out 'frpc.toml') ""
+
+          $html = @"
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+          <meta charset="UTF-8" />
+          <meta http-equiv="refresh" content="0;url=http://127.0.0.1:8010/" />
+          <title>打开 roBrowser</title>
+          <script>location.replace('http://127.0.0.1:8010/');</script>
+          </head>
+          <body>
+          <p>正在打开游戏…若未跳转请点击：
+          <a href="http://127.0.0.1:8010/">http://127.0.0.1:8010/</a>
+          </p>
+          </body>
+          </html>
+          "@
+          ($html -split "`n" | ForEach-Object { $_ -replace '^\s+', '' }) -join "`n" |
+            Set-Content -Encoding utf8 (Join-Path $out 'open-game.html')
+
+          $bat = @"
+          @echo off
+          cd /d "%~dp0"
+          echo Starting frpc (8010 / 5999 / 3338). SSH is NOT included.
+          start "" "open-game.html"
+          frpc.exe -c frpc.toml
+          pause
+          "@
+          ($bat -split "`n" | ForEach-Object { $_ -replace '^\s+', '' }) -join "`r`n" |
+            Set-Content -Encoding ascii (Join-Path $out 'start.bat')
+
+          $readme = @"
+          1. Double-click start.bat
+          2. Keep the window open
+          3. Browser opens http://127.0.0.1:8010 via open-game.html
+          Ports: 8010 robrowser, 5999 wsproxy, 3338 remote-client
+          SSH is NOT included.
+          "@
+          ($readme -split "`n" | ForEach-Object { $_ -replace '^\s+', '' }) -join "`n" |
+            Set-Content -Encoding utf8 (Join-Path $out 'README.txt')
+
+          $tomlText = Get-Content (Join-Path $out 'frpc.toml') -Raw
+          if ($tomlText -match 'aidlux_ssh|2822|name = "ssh"') {
+            throw 'SSH visitor must not be packaged'
+          }
+
+          $artifactZip = Join-Path $env:RUNNER_TEMP 'frpc-visitor-win.zip'
+          if (Test-Path $artifactZip) { Remove-Item $artifactZip -Force }
+          Compress-Archive -Path (Join-Path $out '*') -DestinationPath $artifactZip
+          Write-Host "Created $artifactZip"
+          Get-ChildItem $out | Format-Table Name, Length
+          "PKG_ZIP=$artifactZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
           name: frpc-visitor-win
-          path: dist/frpc-visitor-win.zip
+          path: ${{ env.PKG_ZIP }}
           if-no-files-found: error
           retention-days: 30
