@@ -1,7 +1,6 @@
 # Only packages: frpc.exe + frpc.toml + open-game.html + start.bat
-# Does NOT checkout or build roBrowser / any game assets.
+# Does NOT build roBrowser.
 #
-# Secrets: FRP_AUTH_TOKEN, FRP_SECRET_KEY
 # Run: Actions → Package FRPC Visitor → Run workflow → download Artifacts
 
 name: Package FRPC Visitor
@@ -21,6 +20,14 @@ on:
         description: 'frps serverPort'
         required: false
         default: '7000'
+      auth_token:
+        description: 'frps auth.token'
+        required: false
+        default: 'lieyaolusha'
+      secret_key:
+        description: 'stcp secretKey'
+        required: false
+        default: 'boboan'
 
 permissions:
   contents: read
@@ -30,25 +37,14 @@ jobs:
     name: frpc + html + bat only
     runs-on: windows-latest
     steps:
-      - name: Check secrets
-        shell: bash
-        env:
-          FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
-          FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
-        run: |
-          if [ -z "$FRP_AUTH_TOKEN" ] || [ -z "$FRP_SECRET_KEY" ]; then
-            echo "::error::Set secrets FRP_AUTH_TOKEN and FRP_SECRET_KEY"
-            exit 1
-          fi
-
       - name: Download frpc and make package
         shell: pwsh
         env:
           FRP_VERSION: ${{ inputs.frp_version }}
           FRP_SERVER_ADDR: ${{ inputs.server_addr }}
           FRP_SERVER_PORT: ${{ inputs.server_port }}
-          FRP_AUTH_TOKEN: ${{ secrets.FRP_AUTH_TOKEN }}
-          FRP_SECRET_KEY: ${{ secrets.FRP_SECRET_KEY }}
+          FRP_AUTH_TOKEN: ${{ inputs.auth_token }}
+          FRP_SECRET_KEY: ${{ inputs.secret_key }}
         run: |
           $ErrorActionPreference = 'Stop'
           $ver = $env:FRP_VERSION
@@ -92,7 +88,6 @@ jobs:
           secretKey = "$($env:FRP_SECRET_KEY)"
           bindPort = 3338
           "@
-          # Strip accidental leading whitespace from each line (YAML indent)
           ($toml -split "`n" | ForEach-Object { $_ -replace '^\s+', '' }) -join "`n" |
             Set-Content -NoNewline -Encoding utf8 (Join-Path $out 'frpc.toml')
           Add-Content -Encoding utf8 (Join-Path $out 'frpc.toml') ""
