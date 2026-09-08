@@ -31,7 +31,7 @@ window.ROConfigBase = {
 			renewal: false,
 			worldMapSettings: { episode: 12 },
 			packetKeys: false,
-			socketProxy: `ws://${hostname}/ws`,
+			socketProxy: `ws://${hostname}:3338/ws`,
 			adminList: [2000000]
 		}
 		// ADD PUBLIC TEST SERVERS HERE WITH _M _F REGISTRATION
